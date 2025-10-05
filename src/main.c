@@ -34,6 +34,7 @@ Senario: Earthquake Early Warning System (EEWS)
 int SENSOR_THRESHOLD = 500;
 double GAMA = 0.7;
 int GLOBALBUFFER[BUFFER_SIZE];
+int buttonDebounceTime = 0; // milliseconds
 
 #define CONFIG_LOG_DEFAULT_LEVEL_VERBOSE (1)
 #define CONFIG_LOG_DEFAULT_LEVEL (5)
@@ -124,12 +125,14 @@ void sensor_task(void *pvParameters)
         }
         //delay if we cant get the mutex or if we can
         prevTime = lastWakeTime;
+        //EXTRA CREDIT: USING DELAY UNTIL
         vTaskDelayUntil(&lastWakeTime, periodTicks);
     }
 }
 
 void logger_task(void *pvParameters)
 {
+
     int internalBuffer[BUFFER_SIZE];
     
     for(int i=0; i<BUFFER_SIZE;i++){
@@ -137,8 +140,22 @@ void logger_task(void *pvParameters)
     }
 
     while(1){
-        ESP_LOGI(TAG, "Now waiting for button press...\n");
+        ESP_LOGI(TAG, "Now waiting for button press...\n"); //indicate we are waiting
+
         if (xSemaphoreTake(xButtonSem, portMAX_DELAY) == pdTRUE){
+        ///EXTRA CREDIT: DEBOUNCE--------------------------------------------------------------------------------
+        //Debouncing algorith:  check if we get another button press within 10 ms, if yes, ignore it
+        int currentTime = pdTICKS_TO_MS(xTaskGetTickCount());
+        if ((currentTime - buttonDebounceTime) <= 10)
+        {
+           // printf("Rejected button press due to debounce\n %d, %d", currentTime, buttonDebounceTime);
+            continue; // ignore the button press
+        }
+        else
+        {
+            buttonDebounceTime = currentTime; // update the last valid button press time
+        }
+
         ESP_LOGI(TAG, "Button Pressed, logging data...");
         //read from buffer, 
         if(xSemaphoreTake(xLogMutex, pdMS_TO_TICKS(100))){ //try to take the mutex
